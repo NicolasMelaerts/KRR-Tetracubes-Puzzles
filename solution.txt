@@ -1,0 +1,11 @@
+clingo version 5.7.1
+Reading from PUZZLE.lp
+Solving...
+Answer: 1
+assignType(1,"I") assignType(2,"T") assignType(3,"L") assignType(4,"Pyramid") assignType(5,"O") assignType(6,"N") assignType(7,"Z") assignType(8,"Z_mirror") hint(1) hint(2) hint(5) fullPosition(1,3,0,0,0) fullPosition(2,9,4,1,0) fullPosition(3,24,0,0,1) fullPosition(4,2,4,0,0) fullPosition(5,2,0,1,0) fullPosition(6,9,5,0,0) fullPosition(7,6,2,0,0) fullPosition(8,7,6,0,0) hintPosition(1,3,0,0,0) hintPosition(2,9,4,1,0) hintPosition(5,2,0,1,0)
+SATISFIABLE
+
+Models       : 1+
+Calls        : 1
+Time         : 0.075s (Solving: 0.01s 1st Model: 0.01s Unsat: 0.00s)
+CPU Time     : 0.069s
