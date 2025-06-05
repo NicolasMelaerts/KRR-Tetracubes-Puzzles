@@ -106,10 +106,7 @@ class SolutionVisualizer:
         
         # Current number of tetracubes to display (0 to start)
         self.num_tetracubes = 0
-        self.max_tetracubes = len(self.assign_type)
-        
-        # Get sorted tetracube IDs
-        self.tetracube_ids = sorted(self.assign_type.keys())
+        self.max_tetracubes = len(self.tetracube_types)
         
         # Store tetracube collections
         self.tetracube_collections = {}
@@ -133,76 +130,81 @@ class SolutionVisualizer:
     def parse_solution(self):
         """Parse both puzzle and full solution."""
         # Initialize data structures
-        self.assign_type = {}
+        self.tetracube_types = []
         self.positions = {}
-        self.piece_grid = {}
+        self.type_grid = {}
+        self.hint_types = []
         
         # Parse the current solution
         solution = self.current_solution
         
-        # Extract piece types
+        # Extract tetracube types and their positions
         for item in solution.split():
-            if item.startswith("assignType"):
-                match = re.match(r'assignType\((\d+),"([^"]+)"\)', item)
+            # Extract hint types
+            if item.startswith("hint("):
+                match = re.match(r'hint\("([^"]+)"\)', item)
                 if match:
-                    piece_id = int(match.group(1))
-                    piece_type = match.group(2)
-                    self.assign_type[piece_id] = piece_type
+                    type_name = match.group(1)
+                    self.hint_types.append(type_name)
+                    
+                    # Ensure the type is in tetracube_types
+                    if type_name not in self.tetracube_types:
+                        self.tetracube_types.append(type_name)
             
             # Extract positions for grid_type 1 and 2
-            elif item.startswith("position") and "," in item and not item.endswith(","):
-                if len(item.split(",")) == 5:  # position(P,R,X,Y,Z)
-                    match = re.match(r'position\((\d+),(\d+),(\d+),(\d+),(\d+)\)', item)
-                    if match:
-                        piece_id = int(match.group(1))
-                        rotation = int(match.group(2))
-                        x = int(match.group(3))
-                        y = int(match.group(4))
-                        z = int(match.group(5))
-                        self.positions[piece_id] = (rotation, x, y, z)
+            elif item.startswith("position"):
+                # Format: position("Type",R,X,Y,Z)
+                match = re.match(r'position\("([^"]+)",(\d+),(\d+),(\d+),(\d+)\)', item)
+                if match:
+                    type_name = match.group(1)
+                    rotation = int(match.group(2))
+                    x = int(match.group(3))
+                    y = int(match.group(4))
+                    z = int(match.group(5))
+                    
+                    if type_name not in self.tetracube_types:
+                        self.tetracube_types.append(type_name)
+                        
+                    self.positions[type_name] = (rotation, x, y, z)
                 
-                # Extract positions for grid_type 3
-                elif len(item.split(",")) == 6:  # position(P,R,X,Y,Z,G)
-                    match = re.match(r'position\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)', item)
-                    if match:
-                        piece_id = int(match.group(1))
-                        rotation = int(match.group(2))
-                        x = int(match.group(3))
-                        y = int(match.group(4))
-                        z = int(match.group(5))
-                        grid = int(match.group(6))
-                        self.positions[piece_id] = (rotation, x, y, z, grid)
-                        self.piece_grid[piece_id] = grid
+                # Format: position("Type",R,X,Y,Z,G) for grid_type 3
+                match = re.match(r'position\("([^"]+)",(\d+),(\d+),(\d+),(\d+),(\d+)\)', item)
+                if match:
+                    type_name = match.group(1)
+                    rotation = int(match.group(2))
+                    x = int(match.group(3))
+                    y = int(match.group(4))
+                    z = int(match.group(5))
+                    grid = int(match.group(6))
+                    
+                    if type_name not in self.tetracube_types:
+                        self.tetracube_types.append(type_name)
+                        
+                    self.positions[type_name] = (rotation, x, y, z, grid)
+                    self.type_grid[type_name] = grid
             
             # Extract grid assignments for grid_type 3
-            elif item.startswith("pieceGrid"):
-                match = re.match(r'pieceGrid\((\d+),(\d+)\)', item)
+            elif item.startswith("typeGrid"):
+                match = re.match(r'typeGrid\("([^"]+)",(\d+)\)', item)
                 if match:
-                    piece_id = int(match.group(1))
+                    type_name = match.group(1)
                     grid = int(match.group(2))
-                    self.piece_grid[piece_id] = grid
-        
-        # Update max_tetracubes and tetracube_ids
-        self.max_tetracubes = len(self.assign_type)
-        self.tetracube_ids = sorted(self.assign_type.keys())
+                    self.type_grid[type_name] = grid
     
     def toggle_view(self, label):
         """Toggle between puzzle and solution view."""
         if label == 'Puzzle':
             self.current_solution = self.puzzle_solution
-            # Count the number of pieces in the puzzle
-            piece_count = 0
-            for item in self.puzzle_solution.split():
-                if item.startswith("position"):
-                    piece_count += 1
-            self.num_tetracubes = piece_count
+            # Parse the solution to get hint types
+            self.parse_solution()
+            # Show only hint pieces
+            self.num_tetracubes = len(self.hint_types)
         else:  # Solution
             self.current_solution = self.full_solution
+            # Parse the solution to get all tetracube types
+            self.parse_solution()
             # Show all pieces for the solution
-            self.num_tetracubes = self.max_tetracubes
-        
-        # Parse the new solution
-        self.parse_solution()
+            self.num_tetracubes = len(self.tetracube_types)
         
         # Update the plot
         self.update_plot()
@@ -274,22 +276,28 @@ class SolutionVisualizer:
         if self.num_tetracubes == 0:
             title = f"Empty {self.cube_type} Grid"
         else:
-            # Draw the first n tetracubes
-            for i in range(self.num_tetracubes):
-                if i < len(self.tetracube_ids):
-                    id_num = self.tetracube_ids[i]
-                    self.draw_tetracube(id_num)
+            # Déterminer quels tétracubes afficher
+            if self.current_solution == self.puzzle_solution:
+                # Pour la vue puzzle, utiliser les hints
+                types_to_draw = self.hint_types[:self.num_tetracubes]
+            else:
+                # Pour la vue solution, utiliser tous les types
+                types_to_draw = self.tetracube_types[:self.num_tetracubes]
             
-            if self.num_tetracubes == self.max_tetracubes:
+            for type_name in types_to_draw:
+                if type_name in self.positions:
+                    self.draw_tetracube(type_name)
+            
+            if self.num_tetracubes == len(self.tetracube_types) and self.current_solution == self.full_solution:
                 title = f"All Tetracubes in {self.cube_type}"
             else:
-                title = f"First {self.num_tetracubes} Tetracubes in {self.cube_type}"
+                title = f"{self.num_tetracubes} Tetracubes in {self.cube_type}"
         
         # Add a legend
         from matplotlib.lines import Line2D
         legend_elements = [Line2D([0], [0], marker='s', color='w', 
                                  markerfacecolor=self.colors[type_name], markersize=10, label=type_name)
-                          for type_name in self.colors]
+                          for type_name in self.colors if type_name in self.tetracube_types]
         
         # Determine if we're showing puzzle or solution
         view_mode = "Puzzle" if self.current_solution == self.puzzle_solution else "Solution"
@@ -306,31 +314,30 @@ class SolutionVisualizer:
         plt.tight_layout()
         self.fig.canvas.draw_idle()
     
-    def draw_tetracube(self, id_num):
-        type_name = self.assign_type[id_num]
+    def draw_tetracube(self, type_name):
         color = self.colors[type_name]
         
         if self.two_grids:
-            if id_num in self.positions and len(self.positions[id_num]) == 5:
-                rotation_id, x, y, z, grid = self.positions[id_num]
+            if type_name in self.positions and len(self.positions[type_name]) == 5:
+                rotation_id, x, y, z, grid = self.positions[type_name]
                 ax_index = grid - 1  # Grid 1 -> index 0, Grid 2 -> index 1
-            elif id_num in self.positions and id_num in self.piece_grid:
-                rotation_id, x, y, z = self.positions[id_num]
-                grid = self.piece_grid[id_num]
+            elif type_name in self.positions and type_name in self.type_grid:
+                rotation_id, x, y, z = self.positions[type_name]
+                grid = self.type_grid[type_name]
                 ax_index = grid - 1
             else:
-                print(f"Warning: Missing grid information for tetracube {id_num}")
+                print(f"Warning: Missing grid information for tetracube {type_name}")
                 return
                 
             ax = self.axes[ax_index]
         else:
-            if id_num in self.positions:
-                if len(self.positions[id_num]) == 4:  # (rotation, x, y, z)
-                    rotation_id, x, y, z = self.positions[id_num]
+            if type_name in self.positions:
+                if len(self.positions[type_name]) == 4:  # (rotation, x, y, z)
+                    rotation_id, x, y, z = self.positions[type_name]
                 else:  # Ignore grid information if not in two_grids mode
-                    rotation_id, x, y, z = self.positions[id_num][:4]
+                    rotation_id, x, y, z = self.positions[type_name][:4]
             else:
-                print(f"Warning: Missing position for tetracube {id_num}")
+                print(f"Warning: Missing position for tetracube {type_name}")
                 return
                 
             ax = self.ax
@@ -345,7 +352,7 @@ class SolutionVisualizer:
                 cube = draw_cube(ax, (x + dx, y + dy, z + dz), color)
                 cubes.append(cube)
             
-            self.tetracube_collections[id_num] = cubes
+            self.tetracube_collections[type_name] = cubes
         else:
             print(f"Warning: Tetracube {type_name} with rotation {rotation_id} not found")
     
@@ -364,15 +371,48 @@ def extract_models_from_file(filename):
     
     answer = match.group(1).strip()
     
-    # Create puzzle and solution from the same answer
-    puzzle_solution = answer.replace("hintPosition", "position")
-    full_solution = answer.replace("fullPosition", "position")
+    # Create puzzle solution (containing hint pieces)
+    puzzle_parts = []
+    hint_types = []
+    
+    # Extract hint types first
+    for item in answer.split():
+        if item.startswith("hint("):
+            puzzle_parts.append(item)
+            match = re.match(r'hint\("([^"]+)"\)', item)
+            if match:
+                hint_types.append(match.group(1))
+    
+    # Extract positions for hint pieces
+    for item in answer.split():
+        if item.startswith("hintPosition("):
+            # Convert to proper position format
+            fixed_item = item.replace("hintPosition(", "position(")
+            puzzle_parts.append(fixed_item)
+    
+    # Create full solution (containing all pieces)
+    solution_parts = []
+    
+    # Add all hint types
+    for item in puzzle_parts:
+        if item.startswith("hint("):
+            solution_parts.append(item)
+    
+    # Extract positions for all pieces
+    for item in answer.split():
+        if item.startswith("fullPosition("):
+            # Convert to proper position format
+            fixed_item = item.replace("fullPosition(", "position(")
+            solution_parts.append(fixed_item)
+    
+    puzzle_solution = " ".join(puzzle_parts)
+    full_solution = " ".join(solution_parts)
     
     return puzzle_solution, full_solution
 
 def detect_grid_type(solution):
     """Détecte automatiquement le type de grille à partir de la solution."""
-    if "pieceGrid" in solution:
+    if "typeGrid" in solution:
         return "2x2x4x2"  # Deux grilles 2x2x4
     
     # Analyser les positions pour déterminer les dimensions
@@ -381,10 +421,11 @@ def detect_grid_type(solution):
     
     for item in solution.split():
         if item.startswith("position"):
-            parts = item.replace("position(", "").replace(")", "").split(",")
-            if len(parts) >= 5:  # Assurez-vous qu'il y a assez de parties
-                x = int(parts[2])
-                y = int(parts[3])
+            # Format: position("Type",R,X,Y,Z)
+            match = re.match(r'position\("([^"]+)",(\d+),(\d+),(\d+),(\d+)\)', item)
+            if match:
+                x = int(match.group(3))
+                y = int(match.group(4))
                 max_x = max(max_x, x)
                 max_y = max(max_y, y)
     
@@ -431,4 +472,4 @@ if __name__ == "__main__":
         print("No solution file specified.")
         print("Usage: python place_tetracubes.py solution.txt")
         print("To generate a solution file, run:")
-        print("clingo ASP_codes/BIG_CUBE_PUZZLE.lp -c grid_type=1 --models=2 > solution.txt")
+        print("clingo PUZZLE.lp -c grid_type=1 --models=2 > solution.txt")
